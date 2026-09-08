@@ -3,10 +3,10 @@ import { useEffect } from "react";
 export function useOperacoesInteractions({
   dados,
   setDados,
-  fetcher,
   selectedRanges,
   orderedColumns,
-  fillRange
+  fillRange,
+  onBulkUpdate,
 }: any) {
 
   // Lógica de Preenchimento em Massa (Drag-to-Fill)
@@ -36,12 +36,7 @@ export function useOperacoesInteractions({
     setDados(nextDados);
 
     if (idsToUpdate.length > 0) {
-      const formData = new FormData();
-      formData.append("intent", "bulkUpdate");
-      formData.append("ids", JSON.stringify(idsToUpdate));
-      formData.append("campo", colKey);
-      formData.append("valor", newValue || "");
-      fetcher.submit(formData, { method: "post", action: "/api/operacoes" });
+      onBulkUpdate?.(idsToUpdate, colKey, newValue || "");
     }
   };
 

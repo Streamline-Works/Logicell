@@ -1,58 +1,75 @@
-import type { SupabaseClient, User } from "@supabase/supabase-js";
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
-import { getSupabaseBrowserClient } from "~/services/supabase.client";
+import { api } from "~/lib/api";
+import { queryClient, queryKeys } from "~/lib/query";
 
 type AuthContextType = {
-  user: User | null;
-  supabase: SupabaseClient | null;
+  user: any | null;
+  isLoading: boolean;
+  signIn: (email: string, password: string, redirectTo?: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export function AuthProvider({ 
-  children, 
-  initialSession 
-}: { 
-  children: React.ReactNode;
-  initialSession: User | null;
-}) {
-  // Inicializa como null no servidor, e recupera o singleton no cliente
-  const supabase = useMemo(() => (typeof window !== "undefined" ? getSupabaseBrowserClient() : null), []);
-  const [user, setUser] = useState<User | null>(initialSession);
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<any | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
 
-  const signOut = async () => {
-    if (supabase) {
-      await supabase.auth.signOut();
+  useEffect(() => {
+    let alive = true;
+    api
+      .get<{ user: any }>("/auth/me")
+      .then((d) => {
+        if (alive) setUser(d.user);
+      })
+      .catch(() => {
+        if (alive) setUser(null);
+      })
+      .finally(() => {
+        if (alive) setIsLoading(false);
+      });
+
+    const handleUnauthorized = () => {
       setUser(null);
       navigate("/login");
-    }
-  };
-
-  useEffect(() => {
-    if (!supabase) return;
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "SIGNED_IN") {
-        setUser(session?.user ?? null);
-      } else if (event === "SIGNED_OUT") {
-        setUser(null);
-        navigate("/login");
-      }
-    });
-
-    return () => {
-      subscription.unsubscribe();
     };
-  }, [supabase, navigate]);
+    window.addEventListener("auth:unauthorized", handleUnauthorized);
+    return () => {
+      alive = false;
+      window.removeEventListener("auth:unauthorized", handleUnauthorized);
+    };
+  }, [navigate]);
 
-  return (
-    <AuthContext.Provider value={{ user, supabase, signOut }}>
-      {children}
-    </AuthContext.Provider>
+  const signIn = useCallback(
+    async (email: string, password: string, redirectTo = "/caixa-de-entrada") => {
+      await api.post("/auth/login", { email, password });
+      const d = await api.get<{ user: any }>("/auth/me");
+      setUser(d.user);
+      queryClient.invalidateQueries({ queryKey: queryKeys.init });
+      navigate(redirectTo, { replace: true });
+    },
+    [navigate]
   );
+
+  const signOut = useCallback(async () => {
+    try {
+      await api.post("/auth/logout");
+    } catch {
+      // ignora falha de logout — limpa sessão local de qualquer forma
+    }
+    queryClient.clear();
+    setUser(null);
+    navigate("/login", { replace: true });
+  }, [navigate]);
+
+  const value = useMemo(
+    () => ({ user, isLoading, signIn, signOut }),
+    [user, isLoading, signIn, signOut]
+  );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export const useAuth = () => {

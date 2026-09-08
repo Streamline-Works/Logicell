@@ -1,31 +1,32 @@
 import { ChevronLeft, ChevronRight, Loader2, Search, UserPlus, Users } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useFetcher, useLoaderData, useSearchParams } from "react-router";
+import { useMemo, useState } from "react";
+import { useSearchParams } from "react-router";
+import { useQuery } from "@tanstack/react-query";
 import { useUI } from "~/hooks/use-ui";
 import { UsuariosTable } from "~/components/UsuariosTable";
 import { UsuarioModal, UsuarioModalMode } from "~/components/UsuarioModal";
+import { api, errorMessage } from "~/lib/api";
+import { queryClient } from "~/lib/query";
 
 const POR_PAGINA = 200;
 
-interface UsuariosViewData {
-  usuarios: any[];
-  total: number;
-  page: number;
-  currentUserId: string;
-}
-
 export function UsuariosView() {
-  const { usuarios, total, page, currentUserId } = useLoaderData<UsuariosViewData>();
-  const fetcher = useFetcher();
   const [searchParams, setSearchParams] = useSearchParams();
   const { confirm, alert: showAlert } = useUI();
+
+  const page = Math.max(1, Number(searchParams.get("page")) || 1);
+  const { data, isFetching } = useQuery({
+    queryKey: ["usuarios", page],
+    queryFn: () => api.get<{ usuarios: any[]; total: number; page: number; currentUserId: string }>(`/usuarios?page=${page}`),
+  });
+  const usuarios = data?.usuarios || [];
+  const total = data?.total || 0;
+  const currentUserId = data?.currentUserId || "";
 
   const [busca, setBusca] = useState("");
   const [modal, setModal] = useState<{ mode: UsuarioModalMode; usuario?: any } | null>(null);
   const [erro, setErro] = useState<string | null>(null);
-  const lastDataRef = useRef<any>(null);
-
-  const carregando = fetcher.state !== "idle";
+  const [carregando, setCarregando] = useState(false);
 
   const usuariosFiltrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
@@ -38,22 +39,46 @@ export function UsuariosView() {
 
   const totalPaginas = Math.max(1, Math.ceil(total / POR_PAGINA));
 
-  useEffect(() => {
-    const d = fetcher.data;
-    if (!d || d === lastDataRef.current) return;
-    lastDataRef.current = d;
-
-    if (d.success) {
-      setErro(null);
-      setModal(null);
-      showAlert({ title: "Sucesso", message: d.mensagem || "Operação concluída.", variant: "success" });
-    } else if (d.error) {
-      setErro(d.error);
+  const executar = async (fn: () => Promise<any>, fecharModal = false) => {
+    setCarregando(true);
+    setErro(null);
+    try {
+      const res = await fn();
+      if (res?.mensagem) {
+        showAlert({ title: "Sucesso", message: res.mensagem, variant: "success" });
+      }
+      if (fecharModal) setModal(null);
+      queryClient.invalidateQueries({ queryKey: ["usuarios"] });
+    } catch (err) {
+      setErro(errorMessage(err));
+    } finally {
+      setCarregando(false);
     }
-  }, [fetcher.data, showAlert]);
+  };
 
   const enviar = (intent: string, dados: Record<string, string>) => {
-    fetcher.submit({ intent, ...dados }, { method: "post" });
+    const fecharModal = intent === "criar" || intent === "editar";
+    return executar(async () => {
+      if (intent === "criar") {
+        return api.post("/usuarios", {
+          email: dados.email,
+          senha: dados.senha,
+          nome: dados.nome,
+          role: dados.role,
+        });
+      }
+      if (intent === "editar") {
+        return api.patch(`/usuarios/${dados.usuarioId}`, {
+          nome: dados.nome,
+          role: dados.role,
+          novaSenha: dados.novaSenha || "",
+        });
+      }
+      if (intent === "bloquear") return api.post(`/usuarios/${dados.usuarioId}/bloquear`);
+      if (intent === "ativar") return api.post(`/usuarios/${dados.usuarioId}/ativar`);
+      if (intent === "excluir") return api.del(`/usuarios/${dados.usuarioId}`);
+      throw new Error("Ação inválida.");
+    }, fecharModal);
   };
 
   const mudarPagina = (p: number) => {
@@ -141,7 +166,7 @@ export function UsuariosView() {
         <UsuariosTable
           usuarios={usuariosFiltrados}
           currentUserId={currentUserId}
-          carregando={carregando}
+          carregando={carregando || isFetching}
           onEditar={(u) => abrirModal("editar", u)}
           onBloquear={handleBloquear}
           onAtivar={handleAtivar}

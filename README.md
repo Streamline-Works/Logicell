@@ -1,17 +1,18 @@
 # Logicell
 
-[![React Router](https://img.shields.io/badge/React_Router-v7-CA4245?logo=react-router)](https://reactrouter.com)
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev)
 [![Vite](https://img.shields.io/badge/Vite-B73BFE?logo=vite&logoColor=FFD62E)](https://vitejs.dev/)
+[![Express](https://img.shields.io/badge/API-Express-000000?logo=express)](https://expressjs.com/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Supabase](https://img.shields.io/badge/Supabase-Auth-3ECF8E?logo=supabase)](https://supabase.com)
 [![Prisma](https://img.shields.io/badge/Prisma-ORM-2D3748?logo=prisma)](https://www.prisma.io)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?logo=tailwind-css&logoColor=white)](https://tailwindcss.com)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
 [![Zustand](https://img.shields.io/badge/Zustand-443E38?logo=react&logoColor=white)](https://zustand-demo.pmnd.rs/)
 [![SheetJS](https://img.shields.io/badge/SheetJS-046B46?logo=googlesheets&logoColor=white)](https://sheetjs.com/)
 [![React Data Grid](https://img.shields.io/badge/React_Data_Grid-61DAFB?logo=react&logoColor=black)](https://adazzle.github.io/react-data-grid/)
 [![Lucide React](https://img.shields.io/badge/Lucide_React-F26522?logo=lucide&logoColor=white)](https://lucide.dev/)
 
-O **Logicell** é uma plataforma para gerenciamento de operações logísticas. O sistema centraliza o processamento de planilhas complexas, organização em pastas e filtros avançados.
+O **Logicell** é uma plataforma para gerenciamento de operações logísticas. O sistema centraliza o processamento de planilhas complexas, organização em pastas e filtros avançados. É uma **SPA (Single Page Application)** consumindo uma **API REST própria em Node/Express**.
 
 ---
 
@@ -36,12 +37,13 @@ O **Logicell** é uma plataforma para gerenciamento de operações logísticas. 
 
 | Categoria | Tecnologia |
 | :--- | :--- |
-| **Framework** | React Router v7 (React 19, Vite) |
-| **Auth & Backend** | Supabase (SSR Auth) |
+| **Frontend** | SPA React 19 + Vite (react-router v7 em modo biblioteca) |
+| **Backend/API** | Node + Express 5 (REST) |
+| **Auth & Backend** | Supabase (Auth) com sessão via cookie httpOnly |
 | **Linguagem** | TypeScript |
 | **Banco de Dados** | PostgreSQL |
 | **ORM** | Prisma |
-| **Estado Global** | Zustand |
+| **Estado Global** | Zustand + TanStack Query (dados de servidor) |
 | **Importação / Exportação** | SheetJS (`xlsx`) |
 | **Estilização** | Tailwind CSS (clsx, twMerge) |
 | **Componentes e Ícones**| React Data Grid, Lucide React |
@@ -51,24 +53,26 @@ O **Logicell** é uma plataforma para gerenciamento de operações logísticas. 
 ## 📂 Estrutura Arquitetural
 
 ```text
-├── app/
-│   ├── components/        # Componentes UI reutilizáveis
-│   ├── context/           # Provedores de Estado e AuthProvider (Supabase Context)
-│   ├── hooks/             # Custom Hooks da aplicação
-│   ├── lib/               # Bibliotecas, configurações e utilitários
-│   ├── routes/            # Controladores de rota
-│   ├── services/          # Lógicas de negócio (Importação, Automação, Supabase)
-│   ├── store/             # Gerenciamento de estado global (Zustand)
-│   ├── styles/            # Arquivos de estilo e configurações do Tailwind
-│   ├── utils/             # Helpers p/ parser Excel, formatações (Data, Moeda)
-│   ├── views/             # Telas e views principais (OperacoesView, LoginView, etc.)
-│   ├── root.tsx           # Layout Global e UI Context
-│   ├── routes.ts          # Definição estrutural das rotas (React Router v7)
-│   ├── entry.client.tsx   # Ponto de entrada no cliente
-│   └── entry.server.tsx   # Ponto de entrada no servidor
+├── app/                    # Cliente React (SPA)
+│   ├── components/         # Componentes UI reutilizáveis
+│   ├── context/            # AuthProvider (sessão via /api/auth)
+│   ├── hooks/              # Custom Hooks da aplicação (grid, ações, etc.)
+│   ├── lib/                # Cliente HTTP, QueryClient, tipagens
+│   ├── pages/              # Páginas (Login, Operações, Automações, Perfil, Usuários)
+│   ├── store/              # Gerenciamento de estado global (Zustand)
+│   ├── styles/             # Arquivos de estilo e configurações do Tailwind
+│   ├── utils/              # Helpers (formatações, exportação Excel)
+│   ├── views/              # Telas e views principais (OperacoesView, LoginView, etc.)
+│   ├── AppRoutes.tsx       # Rotas declarativas + guards de autenticação
+│   └── main.tsx            # Ponto de entrada (createRoot)
+├── server/                 # Backend/API (Express)
+│   ├── routes/             # Rotas REST (auth, init, pastas, operacoes, colunas, automacoes, usuarios, perfil)
+│   ├── middlewares/        # requireUser / requireAdmin
+│   ├── services/           # Lógicas de negócio (Importação, Automação, Supabase, Prisma)
+│   └── lib/                # Prisma Client e helpers
 ├── prisma/
-│   ├── schema.prisma      # Modelagem ORM (Operacao, Importacao, Pasta, RegraAutomacao)
-│   └── migrations/        # Versionamento do Banco de Dados
+│   ├── schema.prisma       # Modelagem ORM (Operacao, Importacao, Pasta, RegraAutomacao)
+│   └── migrations/         # Versionamento do Banco de Dados
 ├── .env.example           # Template de Variáveis de Ambiente
 └── package-lock.json      # Gerenciamento determinístico de dependências (NPM)
 ```
@@ -97,9 +101,18 @@ O **Logicell** é uma plataforma para gerenciamento de operações logísticas. 
    npm run migrate
    ```
 
-4. **Inicie o Servidor de Desenvolvimento**
+4. **Inicie tudo (API + SPA juntos)**
    ```bash
    npm run dev
    ```
 
----
+   O Vite roda em `http://localhost:5173` (com proxy de `/api/*` para a API em `http://localhost:3000`). Para rodar em terminais separados: `npm run dev:server` (API) e `npm run dev:client` (SPA).
+
+### Produção
+
+```bash
+npm run build      # gera dist/client (SPA) + build-server/index.cjs (API)
+npm start          # sobe a API que também serve os estáticos do SPA em :3000
+```
+
+O `Dockerfile` já executa o build e o start em um único container.

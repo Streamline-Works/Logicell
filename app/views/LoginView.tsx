@@ -1,7 +1,23 @@
 import { AlertCircle, ArrowRight, Loader2, Lock, Mail, Truck } from "lucide-react";
-import { Form } from "react-router";
+import { useState } from "react";
 
-export function LoginView({ isSubmitting, error }: { isSubmitting: boolean, error?: string }) {
+export function LoginView({
+  onSubmit,
+  isSubmitting,
+  error,
+}: {
+  onSubmit: (email: string, password: string) => void;
+  isSubmitting: boolean;
+  error?: string;
+}) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSubmit(email, password);
+  };
+
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-[#090b0e] p-6 font-sans antialiased selection:bg-primary/30">
       
@@ -20,7 +36,7 @@ export function LoginView({ isSubmitting, error }: { isSubmitting: boolean, erro
         </div>
 
         <div className="bg-[#0f1217] border border-[rgba(255,255,255,0.08)] p-10 rounded-[40px] shadow-[0_10px_40px_rgba(0,0,0,0.1),0_20px_50px_rgba(0,0,0,0.45)] backdrop-blur-md">
-          <Form method="post" className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
               <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#556070] ml-4">E-mail Corporativo</label>
               <div className="relative group">
@@ -31,6 +47,8 @@ export function LoginView({ isSubmitting, error }: { isSubmitting: boolean, erro
                   required
                   type="email"
                   name="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   placeholder="seu@email.com"
                   className="w-full h-16 pl-14 pr-6 bg-[rgba(0,0,0,0.3)] border border-[rgba(255,255,255,0.08)] rounded-3xl text-[#f3f5f8] font-inter outline-none focus:border-primary focus:bg-[rgba(0,0,0,0.5)] focus:shadow-[0_0_0_3px_rgba(0,102,255,0.08)] transition-all placeholder:text-[#556070]"
                 />
@@ -47,6 +65,8 @@ export function LoginView({ isSubmitting, error }: { isSubmitting: boolean, erro
                   required
                   type="password"
                   name="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   className="w-full h-16 pl-14 pr-6 bg-[rgba(0,0,0,0.3)] border border-[rgba(255,255,255,0.08)] rounded-3xl text-[#f3f5f8] font-inter outline-none focus:border-primary focus:bg-[rgba(0,0,0,0.5)] focus:shadow-[0_0_0_3px_rgba(0,102,255,0.08)] transition-all placeholder:text-[#556070]"
                 />
@@ -73,7 +93,7 @@ export function LoginView({ isSubmitting, error }: { isSubmitting: boolean, erro
                 </>
               )}
             </button>
-          </Form>
+          </form>
 
           <div className="mt-10 pt-8 border-t border-[rgba(255,255,255,0.08)]">
             <p className="text-[10px] text-center font-bold text-[#556070] uppercase tracking-[0.1em] leading-relaxed">

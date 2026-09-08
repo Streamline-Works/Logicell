@@ -1,24 +1,17 @@
 {
-  "include": [
-    "app/**/*"
-  ],
+  "include": ["**/*.ts"],
   "compilerOptions": {
     "target": "ESNext",
-    "lib": ["DOM", "DOM.Iterable", "ESNext"],
+    "lib": ["ESNext"],
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "types": ["vite/client", "node"],
-    "paths": {
-      "~/*": ["./app/*"]
-    },
+    "types": ["node"],
     "resolveJsonModule": true,
     "allowImportingTsExtensions": true,
-    "allowJs": true,
-    "checkJs": true,
     "noEmit": true,
     "strict": true,
     "skipLibCheck": true,
     "isolatedModules": true,
-    "jsx": "react-jsx"
+    "esModuleInterop": true
   }
 }
