@@ -54,12 +54,28 @@ export class ExcelParser {
       throw new Error(`Arquivo inválido ou com cabeçalhos incorretos. Colunas obrigatórias faltando: ${missing.map(m => m.name).join(", ")}.`);
     }
 
-    const operacoes = rawData.map((row, index) => this.mapearLinha(row, importacaoId, index));
+    const operacoes = rawData
+      .map((row, index) => this.mapearLinha(row, importacaoId, index))
+      .filter((op): op is Prisma.OperacaoCreateManyInput => op !== null);
 
     return { operacoes, totalLido: rawData.length };
   }
 
-  private static mapearLinha(row: any, importacaoId: number, _index: number): Prisma.OperacaoCreateManyInput {
+  private static deveDescartarCEComValorZero(tipoDoc: any, valorTotal: any): boolean {
+    const tipo = tipoDoc == null ? "" : String(tipoDoc).trim().toUpperCase();
+    if (tipo !== "CE") return false;
+
+    if (valorTotal === null || valorTotal === undefined) return true;
+    if (typeof valorTotal === "number") return valorTotal === 0;
+
+    const str = String(valorTotal).trim();
+    if (str === "") return true;
+
+    const normalizado = Number(str.replace(/\./g, "").replace(",", "."));
+    return Number.isFinite(normalizado) && normalizado === 0;
+  }
+
+  private static mapearLinha(row: any, importacaoId: number, _index: number): Prisma.OperacaoCreateManyInput | null {
     const rowNorm: Record<string, any> = {};
     for (const [k, v] of Object.entries(row)) {
       const cleanKey = String(k).toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[\s_]+/g, "");
@@ -123,6 +139,10 @@ export class ExcelParser {
       comentarios: get(["comentarios", "OBSERVAÇÃO", "OBSERVACAO"]) ? String(get(["comentarios", "OBSERVAÇÃO", "OBSERVACAO"])).trim() : null,
       dt_quitacao_saldo: dt_quitacao_saldo || null,
     };
+
+    const tipoDocCru = get(["id_tipo_documento", "TIPO DOC", "TIPO"]);
+    const valorTotalCru = get(["vl_total", "VALOR TOTAL", "TOTAL", "VALOR"]);
+    if (this.deveDescartarCEComValorZero(tipoDocCru, valorTotalCru)) return null;
 
     const hashStr = `${op.nm_agencia}|${op.nr_ctrc}|${op.nr_nf || ""}|${op.vl_total ? op.vl_total.toFixed(2) : "0.00"}`;
     (op as any).hash_assinatura = crypto.createHash("sha256").update(hashStr).digest("hex");
