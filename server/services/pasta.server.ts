@@ -1,5 +1,6 @@
 import prisma from "../lib/prisma.server";
 import { Pasta } from "@prisma/client";
+import { SupabaseAdminService } from "./supabase-admin.server";
 
 type PastaComCount = Pasta & { _count: { operacoes: number } };
 
@@ -53,9 +54,31 @@ export class PastaService {
     });
   }
 
-  static async criar(nome: string, cor?: string) {
+  private static async validarFaturista(faturistaId: string) {
+    const { usuarios } = await SupabaseAdminService.listarUsuarios(1, 1000);
+    const existe = usuarios.some(u => u.id === faturistaId && !u.bloqueado);
+    if (!existe) {
+      throw new Error("Faturista inválido ou não encontrado.");
+    }
+  }
+
+  static async removerFaturista(faturistaId: string) {
     this.invalidarCache();
-    
+
+    return prisma.pasta.updateMany({
+      where: { faturistaId },
+      data: { faturistaId: null },
+    });
+  }
+
+  static async criar(nome: string, cor?: string, faturistaId?: string) {
+    this.invalidarCache();
+
+    if (!faturistaId) {
+      throw new Error("Informe o faturista responsável pela pasta.");
+    }
+    await this.validarFaturista(faturistaId);
+
     // Validar se já existe
     const existe = await prisma.pasta.findUnique({ where: { nome } });
     if (existe) {
@@ -63,7 +86,7 @@ export class PastaService {
     }
 
     const pasta = await prisma.pasta.create({
-      data: { nome, cor }
+      data: { nome, cor, faturistaId }
     });
 
 
@@ -71,7 +94,7 @@ export class PastaService {
     return pasta;
   }
 
-  static async atualizar(id: number, nome: string, cor?: string) {
+  static async atualizar(id: number, nome: string, cor?: string, faturistaId?: string) {
     this.invalidarCache();
     
     // Validar se o novo nome já existe para outra pasta
@@ -85,10 +108,15 @@ export class PastaService {
       throw new Error("Já existe uma pasta com este nome.");
     }
 
+    if (!faturistaId) {
+      throw new Error("Informe o faturista responsável pela pasta.");
+    }
+    await this.validarFaturista(faturistaId);
+
 
     const pasta = await prisma.pasta.update({
       where: { id },
-      data: { nome, cor }
+      data: { nome, cor, faturistaId }
     });
 
 

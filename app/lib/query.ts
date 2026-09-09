@@ -16,6 +16,7 @@ export const queryKeys = {
   automacoes: ["automacoes"] as const,
   usuarios: (page: number) => ["usuarios", page] as const,
   perfil: ["perfil"] as const,
+  faturistas: ["faturistas"] as const,
 };
 
 export interface InitData {
@@ -36,5 +37,20 @@ export function useInit() {
     refetchOnWindowFocus: true,
     refetchInterval: 120_000,
     refetchIntervalInBackground: false,
+  });
+}
+
+export interface Faturista {
+  id: string;
+  nome: string;
+  email: string;
+}
+
+// Lista de usuários ativos que podem ser atribuídos como faturista de uma pasta.
+export function useFaturistas() {
+  return useQuery({
+    queryKey: queryKeys.faturistas,
+    queryFn: () => api.get<{ faturistas: Faturista[] }>("/pastas/faturistas"),
+    staleTime: 60_000,
   });
 }

@@ -4,7 +4,7 @@ import { NavLink } from "react-router";
 import { useIsFetching } from "@tanstack/react-query";
 import { buscarNomeUsuario } from "~/utils/formatters";
 import { api, errorMessage } from "~/lib/api";
-import { queryClient, queryKeys } from "~/lib/query";
+import { queryClient, queryKeys, useFaturistas } from "~/lib/query";
 import { prefetchOperacoes } from "~/hooks/useOperacoesGridData";
 import { useUI } from "~/hooks/use-ui";
 import { COLOR_NAMES, PRESET_COLORS, SidebarFolderItem } from "./SidebarFolderItem";
@@ -31,9 +31,12 @@ export const Sidebar = React.memo(({
 
   const isFetching = useIsFetching() > 0;
   const { alert: showAlert } = useUI();
+  const { data: faturistasData } = useFaturistas();
+  const faturistas = faturistasData?.faturistas || [];
 
   const [newFolderName, setNewFolderName] = useState("");
   const [newFolderColor, setNewFolderColor] = useState(PRESET_COLORS[0]);
+  const [newFolderFaturista, setNewFolderFaturista] = useState("");
   const [isAddingFolder, setIsAddingFolder] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -52,12 +55,13 @@ export const Sidebar = React.memo(({
 
   const handleCreateFolder = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newFolderName.trim() || isCreating) return;
+    if (!newFolderName.trim() || !newFolderFaturista || isCreating) return;
     setIsCreating(true);
     try {
-      await api.post("/pastas", { nome: newFolderName, cor: newFolderColor });
+      await api.post("/pastas", { nome: newFolderName, cor: newFolderColor, faturistaId: newFolderFaturista });
       setNewFolderName("");
       setNewFolderColor(PRESET_COLORS[0]);
+      setNewFolderFaturista("");
       setIsAddingFolder(false);
       queryClient.invalidateQueries({ queryKey: queryKeys.init });
     } catch (err) {
@@ -65,7 +69,7 @@ export const Sidebar = React.memo(({
     } finally {
       setIsCreating(false);
     }
-  }, [newFolderName, newFolderColor, isCreating, showAlert]);
+  }, [newFolderName, newFolderColor, newFolderFaturista, isCreating, showAlert]);
 
   return (
     <aside className={`${isCollapsed ? 'w-[72px]' : 'w-[240px]'} bg-card-bg dark:bg-bg border-r border-glass-border transition-all duration-300 flex flex-col relative z-20`}>
@@ -194,6 +198,16 @@ export const Sidebar = React.memo(({
             {isAddingFolder && !isCollapsed && (
               <form onSubmit={handleCreateFolder} className="px-3 mb-2 space-y-2 bg-surface rounded-xl p-2 border border-glass-border">
                 <input autoFocus value={newFolderName} onChange={e => setNewFolderName(e.target.value)} placeholder="Nome..." className="w-full bg-card-bg dark:bg-bg rounded-lg px-2 py-1 text-xs font-bold outline-none border border-[rgba(0,0,0,0.12)] dark:border-glass-border focus:border-primary text-text placeholder:text-text-dim" />
+                <select
+                  value={newFolderFaturista}
+                  onChange={e => setNewFolderFaturista(e.target.value)}
+                  className="w-full bg-card-bg dark:bg-bg rounded-lg px-2 py-1 text-xs font-bold outline-none border border-[rgba(0,0,0,0.12)] dark:border-glass-border focus:border-primary text-text"
+                >
+                  <option value="" disabled>Faturista responsável...</option>
+                  {faturistas.map(f => (
+                    <option key={f.id} value={f.id}>{f.nome || f.email}</option>
+                  ))}
+                </select>
                 <div className="flex justify-between items-center px-1">
                   <div className="flex gap-1.5">
                     {PRESET_COLORS.map(c => (
@@ -202,7 +216,7 @@ export const Sidebar = React.memo(({
                   </div>
                   <div className="flex gap-1">
                     <button type="button" onClick={() => setIsAddingFolder(false)} className="p-1 hover:text-rose-500"><X size={14}/></button>
-                    <button type="submit" disabled={isCreating} className="p-1 hover:text-emerald-500 disabled:opacity-50"><CheckCircle2 size={14}/></button>
+                    <button type="submit" disabled={isCreating || !newFolderFaturista} className="p-1 hover:text-emerald-500 disabled:opacity-40"><CheckCircle2 size={14}/></button>
                   </div>
                 </div>
               </form>

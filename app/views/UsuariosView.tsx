@@ -6,7 +6,7 @@ import { useUI } from "~/hooks/use-ui";
 import { UsuariosTable } from "~/components/UsuariosTable";
 import { UsuarioModal, UsuarioModalMode } from "~/components/UsuarioModal";
 import { api, errorMessage } from "~/lib/api";
-import { queryClient } from "~/lib/query";
+import { queryClient, queryKeys } from "~/lib/query";
 
 const POR_PAGINA = 200;
 
@@ -49,6 +49,7 @@ export function UsuariosView() {
       }
       if (fecharModal) setModal(null);
       queryClient.invalidateQueries({ queryKey: ["usuarios"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.faturistas });
     } catch (err) {
       setErro(errorMessage(err));
     } finally {

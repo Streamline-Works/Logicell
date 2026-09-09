@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { SupabaseAdminService } from "../services/supabase-admin.server";
+import { PastaService } from "../services/pasta.server";
 import { getUser, type AuthedResponse } from "../middlewares/auth";
 
 export const usuariosRouter = Router();
@@ -133,8 +134,9 @@ usuariosRouter.post("/:id/bloquear", async (req, res: AuthedResponse, next) => {
       res.status(400).json({ error: "Você não pode bloquear o próprio acesso." });
       return;
     }
+    await PastaService.removerFaturista(usuarioId);
     await SupabaseAdminService.bloquear(usuarioId);
-    res.json({ success: true, mensagem: "Usuário bloqueado com sucesso." });
+    res.json({ success: true, mensagem: "Usuário bloqueado com sucesso. As pastas em que ele era faturista ficaram sem responsável." });
   } catch (err) {
     next(traduzirErroSupabase(err));
   }
@@ -163,8 +165,9 @@ usuariosRouter.delete("/:id", async (req, res: AuthedResponse, next) => {
       res.status(400).json({ error: "Não é possível excluir o último administrador do sistema." });
       return;
     }
+    await PastaService.removerFaturista(usuarioId);
     await SupabaseAdminService.excluir(usuarioId);
-    res.json({ success: true, mensagem: "Usuário excluído com sucesso." });
+    res.json({ success: true, mensagem: "Usuário excluído com sucesso. As pastas em que ele era faturista ficaram sem responsável." });
   } catch (err) {
     next(traduzirErroSupabase(err));
   }

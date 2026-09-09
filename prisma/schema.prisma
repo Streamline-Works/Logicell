@@ -96,13 +96,14 @@ model SnapshotImportacao {
 
 
 model Pasta {
-  id        Int        @id @default(autoincrement())
-  nome      String     @unique
-  cor       String?
-  operacoes  Operacao[]
-  regras     RegraAutomacao[]
-  createdAt  DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  id          Int        @id @default(autoincrement())
+  nome        String     @unique
+  cor         String?
+  faturistaId String?
+  operacoes   Operacao[]
+  regras      RegraAutomacao[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 }
 
 
