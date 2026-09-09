@@ -6,13 +6,14 @@ import { getUser, type AuthedResponse } from "../middlewares/auth";
 
 export const initRouter = Router();
 
-//Dados de boot do cliente: pastas, contador da caixa de entrada e ordem de colunas.
+//Dados de boot do cliente: pastas, contadores por pasta e ordem de colunas.
 initRouter.get("/", async (_req, res: AuthedResponse) => {
   const user = getUser(res);
-  const [pastas, totalInbox, columnOrder] = await Promise.all([
+  const [pastas, totalInbox, columnOrder, emissaoAntigasPorPasta] = await Promise.all([
     PastaService.listar().catch(() => []),
     OperacaoService.contarInbox().catch(() => 0),
     OrdemColunasService.get().catch(() => null),
+    OperacaoService.contarEmissoesAntigasPorPasta().catch(() => ({})),
   ]);
-  res.json({ user, pastas, totalInbox, columnOrder });
+  res.json({ user, pastas, totalInbox, columnOrder, emissaoAntigasPorPasta });
 });

@@ -1,8 +1,9 @@
-import { FolderOpen, Plus, X, Folder } from "lucide-react";
+import { FolderOpen, Plus, Timer, X, Zap, Folder } from "lucide-react";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api, errorMessage } from "~/lib/api";
 import { queryClient } from "~/lib/query";
+import { PrazosView } from "./PrazosView";
 
 export function AutomacoesView() {
   const { data, isFetching } = useQuery({
@@ -11,6 +12,7 @@ export function AutomacoesView() {
   });
   const pastas = data?.pastas || [];
 
+  const [aba, setAba] = useState<"pastas" | "prazos">("pastas");
   const [modalPasta, setModalPasta] = useState<any | null>(null);
   const [novoValor, setNovoValor] = useState("");
   const [tipoRegra, setTipoRegra] = useState<"agencia" | "cliente" | "produto">("agencia");
@@ -57,8 +59,37 @@ export function AutomacoesView() {
 
   return (
     <div className="flex-1 flex flex-col h-full bg-bg text-text overflow-y-auto custom-scrollbar p-6 md:p-8">
-      <div className="max-w-[1400px] mx-auto w-full">
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
+      <div className="max-w-[1400px] mx-auto w-full flex flex-col gap-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-xl font-bold text-text tracking-tight">Automações</h1>
+            <p className="text-xs font-medium text-text-muted mt-1">
+              Regras de triagem das pastas e prazos de emissão
+            </p>
+          </div>
+
+          <div className="flex bg-surface p-1 rounded-xl border border-glass-border h-11 items-center gap-1 self-start sm:self-auto">
+            <button
+              type="button"
+              onClick={() => setAba("pastas")}
+              className={`px-4 h-full flex items-center justify-center text-xs font-bold rounded-lg transition-all ${aba === "pastas" ? "bg-card-bg text-text shadow-sm border border-glass-border" : "text-text-muted hover:text-text border border-transparent"}`}
+            >
+              <Zap size={14} className="mr-1.5" />
+              Pastas
+            </button>
+            <button
+              type="button"
+              onClick={() => setAba("prazos")}
+              className={`px-4 h-full flex items-center justify-center text-xs font-bold rounded-lg transition-all ${aba === "prazos" ? "bg-card-bg text-text shadow-sm border border-glass-border" : "text-text-muted hover:text-text border border-transparent"}`}
+            >
+              <Timer size={14} className="mr-1.5" />
+              Prazos de Emissão
+            </button>
+          </div>
+        </div>
+
+        {aba === "pastas" ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
           {pastas.map((pasta: any) => {
             const hexColor = pasta.cor || "#64748b";
             return (
@@ -105,7 +136,12 @@ export function AutomacoesView() {
               <p className="text-text-muted max-w-md">Crie pastas na tela principal primeiro para poder configurar regras de roteamento.</p>
             </div>
           )}
-        </div>
+          </div>
+        ) : (
+          <div className="py-1">
+            <PrazosView />
+          </div>
+        )}
       </div>
 
       {modalPasta && currentModalData && (

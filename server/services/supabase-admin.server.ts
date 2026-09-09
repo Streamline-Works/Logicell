@@ -46,14 +46,35 @@ function mapearUsuario(u: any): UsuarioAdmin {
 }
 
 export const SupabaseAdminService = {
+  //Lista todos os usuários (consultando todas as páginas do Supabase), ordena
+  //alfabeticamente por nome e devolve apenas a fatia da página pedida — assim a
+  //ordenação continua correta mesmo quando a base passa de uma página (200).
   async listarUsuarios(page = 1, perPage = 200) {
     const supabase = createSupabaseAdminClient();
-    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage });
+    const totalUsuarios: any[] = [];
 
-    if (error) throw error;
+    for (let pagina = 1; ; pagina++) {
+      const { data, error } = await supabase.auth.admin.listUsers({ page: pagina, perPage: 1000 });
+      if (error) throw error;
 
-    const usuarios = (data?.users || []).map(mapearUsuario);
-    return { usuarios, total: data?.total ?? 0 };
+      const users = data?.users || [];
+      totalUsuarios.push(...users);
+
+      if (!users.length || (data?.total ?? 0) <= pagina * 1000) break;
+    }
+
+    const chave = (u: any) => {
+      const nome = (u.user_metadata?.nome || u.user_metadata?.nickname || u.email || "")
+        .trim()
+        .toLowerCase();
+      return nome.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    };
+
+    totalUsuarios.sort((a, b) => chave(a).localeCompare(chave(b)));
+
+    const inicio = (page - 1) * perPage;
+    const usuarios = totalUsuarios.slice(inicio, inicio + perPage).map(mapearUsuario);
+    return { usuarios, total: totalUsuarios.length };
   },
 
   async criarUsuario(dados: { email: string; senha: string; nome: string; role: string }) {

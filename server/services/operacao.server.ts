@@ -2,6 +2,7 @@ import prisma from "../lib/prisma.server";
 import { DateParser } from "../utils/date-parser";
 import { PastaService } from "./pasta.server";
 import { OperacaoQueryBuilder } from "./operacao-query-builder.server";
+import { PrazoService } from "./prazo.server";
 
 export interface BulkActionParams {
   ids: number[];
@@ -21,6 +22,9 @@ export class OperacaoService {
   private static inboxCountCache: number | null = null;
   private static inboxCountCacheTime = 0;
   private static countCache = new Map<string, { count: number; totalVl: number; timestamp: number }>();
+  // Placas duplicadas por pasta (Caixa de Entrada = pastaId null)
+  private static dupsCache = new Map<string, { placas: Set<string>; timestamp: number }>();
+  private static antigasCache: { porPasta: Record<string, number>; timestamp: number } | null = null;
   private static readonly CACHE_TTL = 1000 * 60 * 5; // 5 minutos
   private static readonly SHORT_TTL = 1000 * 30;    // 30 segundos
   private static readonly COUNT_CACHE_TTL = 1000 * 60; // 60 segundos
@@ -31,6 +35,8 @@ export class OperacaoService {
     this.inboxCountCache = null;
     this.inboxCountCacheTime = 0;
     this.countCache.clear();
+    this.dupsCache.clear();
+    this.antigasCache = null;
     PastaService.invalidarCache();
   }
 
@@ -58,7 +64,7 @@ export class OperacaoService {
   }
 
 
-static async listarOperacoesLocal(filtros: any) {
+  static async listarOperacoesLocal(filtros: any) {
     const { page = 1, limit = 200, pastaId } = filtros;
     const p = Math.max(1, Math.floor(Number(page) || 1));
     const l = Math.max(1, Math.min(1000, Math.floor(Number(limit) || 200)));
@@ -90,8 +96,26 @@ static async listarOperacoesLocal(filtros: any) {
         LIMIT ${l} OFFSET ${offset}
       `, ...whereClause.params);
 
+    const [placasDuplicadas, regras] = await Promise.all([
+      this.placasDuplicadasDaPasta(pastaId),
+      PrazoService.regras(),
+    ]);
+    const agora = Date.now();
+    const MILIS_DIA = 24 * 60 * 60 * 1000;
+
     const sanitizedData = data.map((item) => {
       const { _total_count, _total_vl, ...rest } = item;
+
+      // Placa duplicada dentro do escopo da pasta atual (ex.: Caixa de Entrada)
+      const placa = rest.ds_placa ? String(rest.ds_placa).trim() : "";
+      rest.placaDuplicada = placa !== "" && placasDuplicadas.has(placa.toUpperCase());
+
+      // Emissão antiga: data de emissão anterior ao prazo do cliente (ou padrão)
+      const cliente = rest.nm_pessoa_pagador ? String(rest.nm_pessoa_pagador).trim().toUpperCase() : "";
+      const prazoDias = regras.porCliente[cliente] ?? regras.padraoDias;
+      const dt = rest.dt_emissao_ ? new Date(rest.dt_emissao_).getTime() : null;
+      rest.emissaoAntiga = dt !== null && dt < agora - prazoDias * MILIS_DIA;
+
       return {
         ...rest,
         vl_total: rest.vl_total ? Number(rest.vl_total) : null,
@@ -142,6 +166,87 @@ static async listarOperacoesLocal(filtros: any) {
     this.inboxCountCache = count;
     this.inboxCountCacheTime = Date.now();
     return count;
+  }
+
+  // Placas com mais de uma ocorrência dentro da pasta (pastaId null = Caixa de Entrada).
+  static async placasDuplicadasDaPasta(pastaId: number | string | null | undefined): Promise<Set<string>> {
+    const pid = pastaId === "" || pastaId === undefined || isNaN(Number(pastaId)) ? null : Number(pastaId);
+    const cacheKey = pid === null ? "inbox" : `pasta:${pid}`;
+    const cached = this.dupsCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < this.COUNT_CACHE_TTL) {
+      return cached.placas;
+    }
+
+    const rows = await prisma.$queryRawUnsafe<{ ds_placa: string }[]>(
+      `SELECT UPPER(BTRIM(ds_placa)) AS ds_placa
+       FROM "Operacao"
+       WHERE ds_placa IS NOT NULL AND BTRIM(ds_placa) <> ''
+         AND "pastaId" IS NOT DISTINCT FROM $1
+       GROUP BY UPPER(BTRIM(ds_placa))
+       HAVING COUNT(*) > 1`,
+      pid
+    );
+
+    const placas = new Set(rows.map((r) => r.ds_placa));
+    this.dupsCache.set(cacheKey, { placas, timestamp: Date.now() });
+    return placas;
+  }
+
+  // Contagem de operações com emissão anterior ao prazo vigente, agrupada por
+  // pasta (chave "inbox" = Caixa de Entrada / pastaId null; demais chaves = id da pasta).
+  static async contarEmissoesAntigasPorPasta(): Promise<Record<string, number>> {
+    if (this.antigasCache && Date.now() - this.antigasCache.timestamp < this.COUNT_CACHE_TTL) {
+      return this.antigasCache.porPasta;
+    }
+
+    const regras = await PrazoService.regras();
+    const agora = Date.now();
+    const MILIS_DIA = 24 * 60 * 60 * 1000;
+
+    // Agrupa as exceções pelo mesmo número de dias para reduzir condições no SQL
+    const buckets = new Map<number, string[]>();
+    for (const [cliente, dias] of Object.entries(regras.porCliente)) {
+      const lista = buckets.get(dias) ?? [];
+      lista.push(cliente);
+      buckets.set(dias, lista);
+    }
+
+    const todasExcecoes = [...Object.keys(regras.porCliente)];
+    const params: any[] = [];
+    const filters: string[] = [];
+
+    // Clientes sem exceção (ou sem cliente) usam o prazo padrão
+    params.push(todasExcecoes);
+    params.push(new Date(agora - regras.padraoDias * MILIS_DIA));
+    filters.push(
+      `(NOT (UPPER(COALESCE(o.nm_pessoa_pagador, '')) = ANY($${params.length - 1}::text[]))
+        AND o.dt_emissao_ < $${params.length})`
+    );
+
+    // Cada exceção usa o seu próprio prazo
+    for (const [dias, clientes] of buckets.entries()) {
+      params.push(clientes);
+      params.push(new Date(agora - dias * MILIS_DIA));
+      filters.push(
+        `(UPPER(COALESCE(o.nm_pessoa_pagador, '')) = ANY($${params.length - 1}::text[])
+          AND o.dt_emissao_ < $${params.length})`
+      );
+    }
+
+    const rows = await prisma.$queryRawUnsafe<{ pid: number | null; antigas: bigint }[]>(
+      `SELECT "pastaId" AS pid, COUNT(*) AS antigas
+       FROM "Operacao" o
+       WHERE o.dt_emissao_ IS NOT NULL AND (${filters.join(" OR ")})
+       GROUP BY "pastaId"`,
+      ...params
+    );
+
+    const porPasta: Record<string, number> = {};
+    for (const r of rows) {
+      porPasta[r.pid === null ? "inbox" : String(r.pid)] = Number(r.antigas);
+    }
+    this.antigasCache = { porPasta, timestamp: Date.now() };
+    return porPasta;
   }
 
   static async buscarAgencias() {

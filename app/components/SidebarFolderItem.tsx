@@ -29,9 +29,10 @@ interface FolderType {
 interface SidebarFolderItemProps {
   folder: FolderType;
   isCollapsed: boolean;
+  antigas?: number;
 }
 
-export const SidebarFolderItem = React.memo(({ folder, isCollapsed }: SidebarFolderItemProps) => {
+export const SidebarFolderItem = React.memo(({ folder, isCollapsed, antigas = 0 }: SidebarFolderItemProps) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editingValue, setEditingValue] = useState(folder.nome);
   const [editingColor, setEditingColor] = useState(folder.cor || PRESET_COLORS[0]);
@@ -156,6 +157,7 @@ export const SidebarFolderItem = React.memo(({ folder, isCollapsed }: SidebarFol
               : "text-text-muted hover:text-text hover:bg-surface-light"
           }`
         }
+        title={antigas > 0 ? `${antigas} emissão(ões) antiga(s) nesta pasta` : undefined}
       >
         {({ isActive: linkActive }) => (
           <>
@@ -172,6 +174,14 @@ export const SidebarFolderItem = React.memo(({ folder, isCollapsed }: SidebarFol
                     }`}
                   >
                     {folder._count?.operacoes}
+                  </span>
+                )}
+                {antigas > 0 && (
+                  <span
+                    className="text-[9px] px-1.5 py-0.5 rounded-lg bg-amber-500/20 text-amber-600 font-black"
+                    title={`${antigas} emissão(ões) antiga(s)`}
+                  >
+                    {antigas}
                   </span>
                 )}
                 <div className="hidden group-hover/item:flex items-center gap-1.5">

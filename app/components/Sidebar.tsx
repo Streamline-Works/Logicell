@@ -12,6 +12,7 @@ import { COLOR_NAMES, PRESET_COLORS, SidebarFolderItem } from "./SidebarFolderIt
 interface SidebarProps {
   pastas: any[];
   totalInbox: number;
+  emissaoAntigasPorPasta: Record<string, number>;
   user: any;
   isDark: boolean;
   toggleTheme: () => void;
@@ -22,6 +23,7 @@ interface SidebarProps {
 export const Sidebar = React.memo(({
   pastas,
   totalInbox,
+  emissaoAntigasPorPasta,
   user,
   isDark,
   toggleTheme,
@@ -97,17 +99,26 @@ export const Sidebar = React.memo(({
         <div>
           <p className={`${isCollapsed ? 'hidden' : 'px-3'} text-[9px] font-bold text-text-muted uppercase tracking-[0.1em] mb-3`}>Principal</p>
           <div className="space-y-0.5">
-            <NavLink to="/caixa-de-entrada" onMouseEnter={() => prefetchOperacoes(null)} className={({ isActive }) => `flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all relative ${isActive ? 'text-primary bg-primary/10 dark:bg-transparent before:absolute before:-left-2 before:top-1/2 before:-translate-y-1/2 before:w-1 before:h-5 before:bg-primary before:rounded-r' : 'text-text-muted hover:text-text hover:bg-surface-light'}`}>
+            <NavLink to="/caixa-de-entrada" onMouseEnter={() => prefetchOperacoes(null)} title={emissaoAntigasPorPasta.inbox ? `${emissaoAntigasPorPasta.inbox} emissão(ões) antiga(s) na Caixa de Entrada` : undefined} className={({ isActive }) => `flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all relative ${isActive ? 'text-primary bg-primary/10 dark:bg-transparent before:absolute before:-left-2 before:top-1/2 before:-translate-y-1/2 before:w-1 before:h-5 before:bg-primary before:rounded-r' : 'text-text-muted hover:text-text hover:bg-surface-light'}`}>
               {({ isActive }) => (
                 <>
                   <div className="flex items-center gap-2.5">
                     <Inbox size={18} className="shrink-0" />
                     {!isCollapsed && <span>Caixa de Entrada</span>}
                   </div>
-                  {!isCollapsed && totalInbox > 0 && (
-                    <span className={`text-[9px] px-1.5 py-0.5 rounded-lg ${isActive ? "bg-primary/20 text-primary" : "bg-surface text-text-muted"}`}>
-                      {totalInbox}
-                    </span>
+                  {!isCollapsed && (
+                    <div className="flex items-center gap-1.5">
+                      {totalInbox > 0 && (
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded-lg ${isActive ? "bg-primary/20 text-primary" : "bg-surface text-text-muted"}`}>
+                          {totalInbox}
+                        </span>
+                      )}
+                      {(emissaoAntigasPorPasta.inbox ?? 0) > 0 && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-lg bg-amber-500/20 text-amber-600 font-black">
+                          {emissaoAntigasPorPasta.inbox}
+                        </span>
+                      )}
+                    </div>
                   )}
                 </>
               )}
@@ -223,7 +234,7 @@ export const Sidebar = React.memo(({
             )}
 
             {filteredPastas.map((p: any) => (
-              <SidebarFolderItem key={p.id} folder={p} isCollapsed={isCollapsed} />
+              <SidebarFolderItem key={p.id} folder={p} isCollapsed={isCollapsed} antigas={emissaoAntigasPorPasta[String(p.id)] ?? 0} />
             ))}
 
             {!isCollapsed && pastas.length > 0 && filteredPastas.length === 0 && (

@@ -9,6 +9,7 @@ import { pastasRouter } from "./routes/pastas";
 import { colunasRouter } from "./routes/colunas";
 import { operacoesRouter } from "./routes/operacoes";
 import { automacoesRouter } from "./routes/automacoes";
+import { prazosRouter } from "./routes/prazos";
 import { usuariosRouter } from "./routes/usuarios";
 import { perfilRouter } from "./routes/perfil";
 
@@ -27,6 +28,7 @@ api.use("/pastas", pastasRouter);
 api.use("/colunas", colunasRouter);
 api.use("/operacoes", operacoesRouter);
 api.use("/automacoes", automacoesRouter);
+api.use("/prazos", prazosRouter);
 api.use("/perfil", perfilRouter);
 api.use("/usuarios", requireAdmin, usuariosRouter);
 app.use("/api", api);

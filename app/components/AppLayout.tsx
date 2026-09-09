@@ -12,6 +12,7 @@ export function AppLayout() {
 
   const pastas = init?.pastas || [];
   const totalInbox = init?.totalInbox || 0;
+  const emissaoAntigasPorPasta = init?.emissaoAntigasPorPasta || {};
 
   const [modal, setModal] = useState<{
     isOpen: boolean;
@@ -62,6 +63,7 @@ export function AppLayout() {
         <Sidebar
           pastas={pastas}
           totalInbox={totalInbox}
+          emissaoAntigasPorPasta={emissaoAntigasPorPasta}
           user={user}
           isDark={isDark}
           toggleTheme={toggleTheme}

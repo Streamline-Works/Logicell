@@ -125,3 +125,21 @@ model RegraAutomacao {
 
   @@index([pastaId])
 }
+
+// Exceções de prazo de emissão por cliente (nm_pessoa_pagador). Clientes sem
+// exceção usam o prazo padrão da tabela Configuracao.
+model PrazoCliente {
+  id        Int      @id @default(autoincrement())
+  cliente   String   @unique
+  prazoDias Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Configurações globais singleton (id = 1, padrão usado por OrdemColunas).
+model Configuracao {
+  id               Int      @id @default(1)
+  prazoPadraoDias  Int      @default(10)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}

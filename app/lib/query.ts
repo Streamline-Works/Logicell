@@ -17,6 +17,7 @@ export const queryKeys = {
   usuarios: (page: number) => ["usuarios", page] as const,
   perfil: ["perfil"] as const,
   faturistas: ["faturistas"] as const,
+  prazos: ["prazos"] as const,
 };
 
 export interface InitData {
@@ -24,6 +25,8 @@ export interface InitData {
   pastas: any[];
   totalInbox: number;
   columnOrder: string[] | null;
+  // Contagem de emissões antigas por pasta (chave "inbox" = Caixa de Entrada).
+  emissaoAntigasPorPasta: Record<string, number>;
 }
 
 // Dados de boot (sidebar + ordem de colunas). Mantidos frescos com polling
@@ -51,6 +54,21 @@ export function useFaturistas() {
   return useQuery({
     queryKey: queryKeys.faturistas,
     queryFn: () => api.get<{ faturistas: Faturista[] }>("/pastas/faturistas"),
+    staleTime: 60_000,
+  });
+}
+
+export interface PrazoClienteItem {
+  id: number;
+  cliente: string;
+  prazoDias: number;
+}
+
+// Regras de "emissão antiga": prazo padrão global + exceções por cliente.
+export function usePrazos() {
+  return useQuery({
+    queryKey: queryKeys.prazos,
+    queryFn: () => api.get<{ padrao: number; clientes: PrazoClienteItem[] }>("/prazos"),
     staleTime: 60_000,
   });
 }
