@@ -40,8 +40,10 @@ export class OperacaoService {
     PastaService.invalidarCache();
   }
 
-  // Whitelist de colunas ordenáveis (anti SQL injection) — datas e valores numéricos
+  // Whitelist de colunas ordenáveis (anti SQL injection) — datas, CTe e valores numéricos
   private static readonly SORTABLE_COLUMNS: Record<string, string> = {
+    // nr_ctrc é texto no banco: ordena numericamente quando só tem dígitos
+    nr_ctrc: `CASE WHEN o.nr_ctrc ~ '^[0-9]+$' THEN o.nr_ctrc::numeric END`,
     dt_emissao_: "o.dt_emissao_",
     data_status: "o.data_status",
     dt_quitacao_saldo: "o.dt_quitacao_saldo",

@@ -6,7 +6,7 @@ import { twMerge } from "tailwind-merge";
 
 function cn(...inputs: ClassValue[]) { return twMerge(clsx(inputs)); }
 
-const SORTABLE_COLUMNS = ["dt_emissao_", "data_status", "dt_quitacao_saldo", "vl_peso", "vl_tarifa", "vl_total"];
+const SORTABLE_COLUMNS = ["nr_ctrc", "dt_emissao_", "data_status", "dt_quitacao_saldo", "vl_peso", "vl_tarifa", "vl_total"];
 
 const PLACA_DUPLICADA_BG = { backgroundColor: "rgba(217,119,6,0.18)" };
 const EMISSAO_ANTIGA_BG = { backgroundColor: "rgba(224,48,72,0.14)" };
