@@ -1,7 +1,5 @@
 {
   "include": [
-    "react-router.config.ts",
-    ".react-router/types/**/*",
     "app/**/*"
   ],
   "compilerOptions": {
@@ -9,8 +7,7 @@
     "lib": ["DOM", "DOM.Iterable", "ESNext"],
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "rootDirs": [".", "./.react-router/types"],
-    "types": ["@react-router/node", "vite/client", "node"],
+    "types": ["vite/client", "node"],
     "paths": {
       "~/*": ["./app/*"]
     },

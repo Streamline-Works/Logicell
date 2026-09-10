@@ -4,7 +4,6 @@ import { twMerge } from "tailwind-merge";
 import { useOperacoesStore } from "~/store/useOperacoesStore";
 
 export interface OperacoesToolbarProps {
-  dadosPromise: any;
   pastas: any[];
   nomePasta: string;
   showImport: boolean;

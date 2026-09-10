@@ -1,46 +1,97 @@
-import { FolderOpen, Plus, X, Folder } from "lucide-react";
+import { FolderOpen, Plus, Timer, X, Zap, Folder } from "lucide-react";
 import { useState } from "react";
-import { useFetcher } from "react-router";
+import { useQuery } from "@tanstack/react-query";
+import { api, errorMessage } from "~/lib/api";
+import { queryClient } from "~/lib/query";
+import { PrazosView } from "./PrazosView";
 
-interface AutomacoesViewProps {
-  pastas: any[];
-}
+export function AutomacoesView() {
+  const { data, isFetching } = useQuery({
+    queryKey: ["automacoes"],
+    queryFn: () => api.get<{ pastas: any[] }>("/automacoes"),
+  });
+  const pastas = data?.pastas || [];
 
-export function AutomacoesView({ pastas }: AutomacoesViewProps) {
-  const fetcher = useFetcher();
+  const [aba, setAba] = useState<"pastas" | "prazos">("pastas");
   const [modalPasta, setModalPasta] = useState<any | null>(null);
   const [novoValor, setNovoValor] = useState("");
-  const [tipoRegra, setTipoRegra] = useState<'agencia' | 'cliente' | 'produto'>('agencia');
+  const [tipoRegra, setTipoRegra] = useState<"agencia" | "cliente" | "produto">("agencia");
+  const [erro, setErro] = useState<string | null>(null);
+  const [carregando, setCarregando] = useState(false);
 
-  const handleAdd = (e: React.FormEvent) => {
+  const invalidar = () => queryClient.invalidateQueries({ queryKey: ["automacoes"] });
+
+  const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!novoValor.trim() || !modalPasta) return;
-    
-    fetcher.submit(
-      { intent: "adicionar", pastaId: modalPasta.id.toString(), tipo: tipoRegra, valor: novoValor },
-      { method: "post" }
-    );
-    setNovoValor("");
+    if (!novoValor.trim() || !modalPasta || carregando) return;
+    setCarregando(true);
+    setErro(null);
+    try {
+      await api.post("/automacoes/regras", {
+        pastaId: modalPasta.id,
+        tipo: tipoRegra,
+        valor: novoValor,
+      });
+      setNovoValor("");
+      invalidar();
+    } catch (err) {
+      setErro(errorMessage(err));
+    } finally {
+      setCarregando(false);
+    }
   };
 
-  const handleRemove = (regraId: number) => {
-    fetcher.submit(
-      { intent: "remover", regraId: regraId.toString() },
-      { method: "post" }
-    );
+  const handleRemove = async (regraId: number) => {
+    if (carregando) return;
+    setCarregando(true);
+    setErro(null);
+    try {
+      await api.del(`/automacoes/regras/${regraId}`);
+      invalidar();
+    } catch (err) {
+      setErro(errorMessage(err));
+    } finally {
+      setCarregando(false);
+    }
   };
 
   const currentModalData = modalPasta ? pastas.find((p: any) => p.id === modalPasta.id) : null;
 
   return (
     <div className="flex-1 flex flex-col h-full bg-bg text-text overflow-y-auto custom-scrollbar p-6 md:p-8">
-      <div className="max-w-[1400px] mx-auto w-full">
-        {/* SIMPLE GRID */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
+      <div className="max-w-[1400px] mx-auto w-full flex flex-col gap-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-xl font-bold text-text tracking-tight">Automações</h1>
+            <p className="text-xs font-medium text-text-muted mt-1">
+              Regras de triagem das pastas e prazos de emissão
+            </p>
+          </div>
+
+          <div className="flex bg-surface p-1 rounded-xl border border-glass-border h-11 items-center gap-1 self-start sm:self-auto">
+            <button
+              type="button"
+              onClick={() => setAba("pastas")}
+              className={`px-4 h-full flex items-center justify-center text-xs font-bold rounded-lg transition-all ${aba === "pastas" ? "bg-card-bg text-text shadow-sm border border-glass-border" : "text-text-muted hover:text-text border border-transparent"}`}
+            >
+              <Zap size={14} className="mr-1.5" />
+              Pastas
+            </button>
+            <button
+              type="button"
+              onClick={() => setAba("prazos")}
+              className={`px-4 h-full flex items-center justify-center text-xs font-bold rounded-lg transition-all ${aba === "prazos" ? "bg-card-bg text-text shadow-sm border border-glass-border" : "text-text-muted hover:text-text border border-transparent"}`}
+            >
+              <Timer size={14} className="mr-1.5" />
+              Prazos de Emissão
+            </button>
+          </div>
+        </div>
+
+        {aba === "pastas" ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
           {pastas.map((pasta: any) => {
-            // Se a pasta não tiver cor definida, usamos um cinza neutro
-            const hexColor = pasta.cor || '#64748b';
-            
+            const hexColor = pasta.cor || "#64748b";
             return (
               <button
                 key={pasta.id}
@@ -49,26 +100,26 @@ export function AutomacoesView({ pastas }: AutomacoesViewProps) {
                 style={{
                   backgroundColor: `${hexColor}0A`,
                   borderColor: `${hexColor}33`,
-                  borderWidth: '1px'
+                  borderWidth: "1px",
                 }}
               >
-                <div 
-                  className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none rounded-[inherit]" 
-                  style={{ border: `1px solid ${hexColor}` }} 
+                <div
+                  className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none rounded-[inherit]"
+                  style={{ border: `1px solid ${hexColor}` }}
                 />
 
                 {pasta.regras.length > 0 && (
-                  <div 
+                  <div
                     className="absolute top-2 right-2 flex items-center justify-center w-[18px] h-[18px] rounded-sm text-[9px] font-bold"
                     style={{ backgroundColor: `${hexColor}20`, color: hexColor }}
                   >
                     {pasta.regras.length}
                   </div>
                 )}
-                
-                <Folder 
-                  size={24} 
-                  className="transition-transform group-hover:-translate-y-0.5" 
+
+                <Folder
+                  size={24}
+                  className="transition-transform group-hover:-translate-y-0.5"
                   style={{ color: hexColor }}
                 />
                 <span className="font-semibold text-xs text-text text-center px-3 leading-snug w-full">
@@ -77,21 +128,25 @@ export function AutomacoesView({ pastas }: AutomacoesViewProps) {
               </button>
             );
           })}
-          
-          {pastas.length === 0 && (
+
+          {!isFetching && pastas.length === 0 && (
             <div className="col-span-full py-20 flex flex-col items-center justify-center text-center">
               <Folder size={48} className="text-text-dim mb-4 opacity-50" />
               <h3 className="text-lg font-bold text-text mb-2">Sem pastas disponíveis</h3>
               <p className="text-text-muted max-w-md">Crie pastas na tela principal primeiro para poder configurar regras de roteamento.</p>
             </div>
           )}
-        </div>
-      </div>      {/* MODAL DE GERENCIAMENTO DA PASTA */}
+          </div>
+        ) : (
+          <div className="py-1">
+            <PrazosView />
+          </div>
+        )}
+      </div>
+
       {modalPasta && currentModalData && (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-200" onClick={() => setModalPasta(null)}>
           <div className="bg-card-bg w-full max-w-2xl rounded-[2rem] shadow-[0_20px_60px_rgba(0,0,0,0.4)] border border-glass-border animate-in zoom-in-95 duration-300 overflow-hidden flex flex-col max-h-[85vh] relative" onClick={e => e.stopPropagation()}>
-            
-            {/* Header com fundo padrão do modal para consistência */}
             <div className="relative p-8 pb-6 border-b border-glass-border bg-surface shrink-0">
               <div className="flex justify-between items-start relative z-10">
                 <div>
@@ -104,37 +159,33 @@ export function AutomacoesView({ pastas }: AutomacoesViewProps) {
               </div>
             </div>
 
-            {/* Content Modal */}
             <div className="p-8 flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-8 bg-card-bg">
-              
-              {/* ADD NEW RULE SECTION */}
               <section>
                 <div className="flex items-center justify-between mb-3">
                   <label className="text-xs font-bold uppercase tracking-widest text-text-muted">Adicionar Regra</label>
                 </div>
-                
+
                 <form onSubmit={handleAdd} className="flex flex-col gap-4">
                   <div className="flex flex-col gap-3">
-                    {/* Segmented Control custom */}
                     <div className="flex bg-surface p-1 rounded-xl border border-glass-border h-11 items-center self-start">
-                      <button 
+                      <button
                         type="button"
-                        onClick={() => setTipoRegra('agencia')}
-                        className={`px-4 h-full flex items-center justify-center text-sm font-bold rounded-lg transition-all ${tipoRegra === 'agencia' ? 'bg-card-bg text-text shadow-sm border border-glass-border' : 'text-text-muted hover:text-text border border-transparent'}`}
+                        onClick={() => setTipoRegra("agencia")}
+                        className={`px-4 h-full flex items-center justify-center text-sm font-bold rounded-lg transition-all ${tipoRegra === "agencia" ? "bg-card-bg text-text shadow-sm border border-glass-border" : "text-text-muted hover:text-text border border-transparent"}`}
                       >
                         Agência
                       </button>
-                      <button 
+                      <button
                         type="button"
-                        onClick={() => setTipoRegra('cliente')}
-                        className={`px-4 h-full flex items-center justify-center text-sm font-bold rounded-lg transition-all ${tipoRegra === 'cliente' ? 'bg-card-bg text-text shadow-sm border border-glass-border' : 'text-text-muted hover:text-text border border-transparent'}`}
+                        onClick={() => setTipoRegra("cliente")}
+                        className={`px-4 h-full flex items-center justify-center text-sm font-bold rounded-lg transition-all ${tipoRegra === "cliente" ? "bg-card-bg text-text shadow-sm border border-glass-border" : "text-text-muted hover:text-text border border-transparent"}`}
                       >
                         Cliente
                       </button>
-                      <button 
+                      <button
                         type="button"
-                        onClick={() => setTipoRegra('produto')}
-                        className={`px-4 h-full flex items-center justify-center text-sm font-bold rounded-lg transition-all ${tipoRegra === 'produto' ? 'bg-card-bg text-text shadow-sm border border-glass-border' : 'text-text-muted hover:text-text border border-transparent'}`}
+                        onClick={() => setTipoRegra("produto")}
+                        className={`px-4 h-full flex items-center justify-center text-sm font-bold rounded-lg transition-all ${tipoRegra === "produto" ? "bg-card-bg text-text shadow-sm border border-glass-border" : "text-text-muted hover:text-text border border-transparent"}`}
                       >
                         Produto
                       </button>
@@ -142,20 +193,20 @@ export function AutomacoesView({ pastas }: AutomacoesViewProps) {
 
                     <div className="flex flex-col sm:flex-row gap-3">
                       <div className="relative flex-1">
-                        <input 
-                          type="text" 
-                          placeholder={tipoRegra === 'agencia' ? "Ex: NOME DA AGÊNCIA" : tipoRegra === 'cliente' ? "Ex: NOME DO CLIENTE" : "Ex: NOME DO PRODUTO"} 
+                        <input
+                          type="text"
+                          placeholder={tipoRegra === "agencia" ? "Ex: NOME DA AGÊNCIA" : tipoRegra === "cliente" ? "Ex: NOME DO CLIENTE" : "Ex: NOME DO PRODUTO"}
                           className="w-full h-11 bg-surface border border-glass-border rounded-xl px-4 text-sm font-bold focus:ring-1 focus:ring-primary focus:border-primary text-text uppercase placeholder:normal-case placeholder:font-medium placeholder:text-text-dim transition-all outline-none"
                           value={novoValor}
                           onChange={e => setNovoValor(e.target.value.toUpperCase())}
-                          disabled={fetcher.state !== "idle"}
+                          disabled={carregando}
                           autoFocus
                         />
                       </div>
-                      
-                      <button 
+
+                      <button
                         type="submit"
-                        disabled={!novoValor.trim() || fetcher.state !== "idle"}
+                        disabled={!novoValor.trim() || carregando}
                         className="h-11 bg-primary hover:bg-primary/90 disabled:opacity-50 text-white rounded-xl px-5 font-bold flex items-center justify-center gap-2 transition-all shrink-0 shadow-sm"
                       >
                         <Plus size={18} strokeWidth={2.5} />
@@ -166,10 +217,10 @@ export function AutomacoesView({ pastas }: AutomacoesViewProps) {
                 </form>
               </section>
 
-              {fetcher.data?.error && (
+              {erro && (
                 <div className="bg-error/10 text-error border border-error/20 rounded-xl p-4 text-sm font-medium flex items-center gap-3">
                   <div className="w-1.5 h-1.5 rounded-full bg-error shrink-0" />
-                  {fetcher.data.error}
+                  {erro}
                 </div>
               )}
               {currentModalData.regras.some((r: any) => r.hasConflict) && (
@@ -179,15 +230,14 @@ export function AutomacoesView({ pastas }: AutomacoesViewProps) {
                 </div>
               )}
 
-              {/* RULES LIST */}
               <section className="flex-1 flex flex-col">
                 <div className="flex items-center justify-between mb-3 border-b border-glass-border pb-2">
                   <label className="text-xs font-bold uppercase tracking-widest text-text-muted flex items-center gap-2">
-                    Regras Ativas 
+                    Regras Ativas
                     <span className="px-1.5 py-0.5 rounded-md bg-surface text-[10px] text-text-muted border border-glass-border">{currentModalData.regras.length}</span>
                   </label>
                 </div>
-                
+
                 {currentModalData.regras.length === 0 ? (
                   <div className="flex-1 flex flex-col items-center justify-center py-10 text-center">
                     <div className="w-12 h-12 rounded-2xl bg-surface border border-glass-border flex items-center justify-center mb-4 text-text-dim -rotate-6 shadow-sm">
@@ -201,17 +251,17 @@ export function AutomacoesView({ pastas }: AutomacoesViewProps) {
                     {currentModalData.regras.map((regra: any) => (
                       <div key={regra.id} className="group flex items-center justify-between px-3 py-2 rounded-lg bg-surface hover:bg-surface-light border border-glass-border hover:border-glass-border transition-all">
                         <div className="flex items-center gap-4 overflow-hidden">
-                          <span className={`shrink-0 text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded-md ${regra.agencia ? 'bg-badge-primary-bg text-badge-primary-text' : regra.produto ? 'bg-[#8b5cf6]/10 text-[#8b5cf6] border border-[#8b5cf6]/20' : 'bg-surface text-text-muted border border-glass-border'}`}>
-                            {regra.agencia ? 'Agência' : regra.produto ? 'Produto' : 'Cliente'}
+                          <span className={`shrink-0 text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded-md ${regra.agencia ? "bg-badge-primary-bg text-badge-primary-text" : regra.produto ? "bg-[#8b5cf6]/10 text-[#8b5cf6] border border-[#8b5cf6]/20" : "bg-surface text-text-muted border border-glass-border"}`}>
+                            {regra.agencia ? "Agência" : regra.produto ? "Produto" : "Cliente"}
                           </span>
-                          <span className={`text-sm font-bold truncate flex items-center ${regra.hasConflict ? 'text-amber-500' : 'text-text'}`} title={regra.agencia || regra.cliente || regra.produto}>
+                          <span className={`text-sm font-bold truncate flex items-center ${regra.hasConflict ? "text-amber-500" : "text-text"}`} title={regra.agencia || regra.cliente || regra.produto}>
                             {regra.agencia || regra.cliente || regra.produto}
                           </span>
                           {regra.hasConflict && (
                             <span className="shrink-0 text-[9px] bg-amber-500/20 text-amber-600 px-1.5 py-0.5 rounded-md font-bold uppercase tracking-widest">Conflito</span>
                           )}
                         </div>
-                        <button 
+                        <button
                           onClick={() => handleRemove(regra.id)}
                           className="w-8 h-8 flex items-center justify-center rounded-lg text-text-muted hover:text-error hover:bg-error/10 opacity-0 group-hover:opacity-100 transition-all shrink-0"
                           title="Remover regra"
@@ -223,7 +273,6 @@ export function AutomacoesView({ pastas }: AutomacoesViewProps) {
                   </div>
                 )}
               </section>
-
             </div>
           </div>
         </div>

@@ -1,12 +1,18 @@
 import { CheckCircle2, Inbox, Moon, Plus, Search, ShieldCheck, Sun, Truck, User as UserIcon, X, Zap, Loader2, Menu } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
-import { NavLink, useFetcher, useNavigation } from "react-router";
+import { NavLink } from "react-router";
+import { useIsFetching } from "@tanstack/react-query";
 import { buscarNomeUsuario } from "~/utils/formatters";
+import { api, errorMessage } from "~/lib/api";
+import { queryClient, queryKeys, useFaturistas } from "~/lib/query";
+import { prefetchOperacoes } from "~/hooks/useOperacoesGridData";
+import { useUI } from "~/hooks/use-ui";
 import { COLOR_NAMES, PRESET_COLORS, SidebarFolderItem } from "./SidebarFolderItem";
 
 interface SidebarProps {
   pastas: any[];
   totalInbox: number;
+  emissaoAntigasPorPasta: Record<string, number>;
   user: any;
   isDark: boolean;
   toggleTheme: () => void;
@@ -17,6 +23,7 @@ interface SidebarProps {
 export const Sidebar = React.memo(({
   pastas,
   totalInbox,
+  emissaoAntigasPorPasta,
   user,
   isDark,
   toggleTheme,
@@ -24,12 +31,16 @@ export const Sidebar = React.memo(({
   setIsCollapsed
 }: SidebarProps) => {
 
-  const fetcher = useFetcher({ key: "sidebar-create-folder" });
-  const navigation = useNavigation();
+  const isFetching = useIsFetching() > 0;
+  const { alert: showAlert } = useUI();
+  const { data: faturistasData } = useFaturistas();
+  const faturistas = faturistasData?.faturistas || [];
 
   const [newFolderName, setNewFolderName] = useState("");
   const [newFolderColor, setNewFolderColor] = useState(PRESET_COLORS[0]);
+  const [newFolderFaturista, setNewFolderFaturista] = useState("");
   const [isAddingFolder, setIsAddingFolder] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterColor, setFilterColor] = useState("");
 
@@ -44,24 +55,30 @@ export const Sidebar = React.memo(({
     });
   }, [pastas, searchQuery, filterColor]);
 
-  const handleCreateFolder = useCallback((e: React.FormEvent) => {
+  const handleCreateFolder = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newFolderName.trim()) return;
-    fetcher.submit(
-      { intent: "createFolder", nome: newFolderName, cor: newFolderColor },
-      { method: "post", action: "/api/operacoes" }
-    );
-    setNewFolderName("");
-    setNewFolderColor(PRESET_COLORS[0]);
-    setIsAddingFolder(false);
-  }, [newFolderName, newFolderColor, fetcher]);
+    if (!newFolderName.trim() || !newFolderFaturista || isCreating) return;
+    setIsCreating(true);
+    try {
+      await api.post("/pastas", { nome: newFolderName, cor: newFolderColor, faturistaId: newFolderFaturista });
+      setNewFolderName("");
+      setNewFolderColor(PRESET_COLORS[0]);
+      setNewFolderFaturista("");
+      setIsAddingFolder(false);
+      queryClient.invalidateQueries({ queryKey: queryKeys.init });
+    } catch (err) {
+      showAlert({ title: "Erro ao criar pasta", message: errorMessage(err), variant: "error" });
+    } finally {
+      setIsCreating(false);
+    }
+  }, [newFolderName, newFolderColor, newFolderFaturista, isCreating, showAlert]);
 
   return (
     <aside className={`${isCollapsed ? 'w-[72px]' : 'w-[240px]'} bg-card-bg dark:bg-bg border-r border-glass-border transition-all duration-300 flex flex-col relative z-20`}>
       <div className="h-[64px] flex items-center px-4 border-b border-glass-border shrink-0">
         <div className="flex items-center gap-2.5 overflow-hidden">
           <div className="p-1.5 bg-primary rounded-lg text-white shrink-0 shadow-primary-glow">
-            {navigation.state !== 'idle' ? (
+            {isFetching ? (
               <Loader2 size={18} strokeWidth={2.5} className="animate-spin" />
             ) : (
               <Truck size={18} strokeWidth={2.5} />
@@ -82,23 +99,32 @@ export const Sidebar = React.memo(({
         <div>
           <p className={`${isCollapsed ? 'hidden' : 'px-3'} text-[9px] font-bold text-text-muted uppercase tracking-[0.1em] mb-3`}>Principal</p>
           <div className="space-y-0.5">
-            <NavLink to="/caixa-de-entrada" prefetch="none" className={({ isActive }) => `flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all relative ${isActive ? 'text-primary bg-primary/10 dark:bg-transparent before:absolute before:-left-2 before:top-1/2 before:-translate-y-1/2 before:w-1 before:h-5 before:bg-primary before:rounded-r' : 'text-text-muted hover:text-text hover:bg-surface-light'}`}>
+            <NavLink to="/caixa-de-entrada" onMouseEnter={() => prefetchOperacoes(null)} title={emissaoAntigasPorPasta.inbox ? `${emissaoAntigasPorPasta.inbox} emissão(ões) antiga(s) na Caixa de Entrada` : undefined} className={({ isActive }) => `flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all relative ${isActive ? 'text-primary bg-primary/10 dark:bg-transparent before:absolute before:-left-2 before:top-1/2 before:-translate-y-1/2 before:w-1 before:h-5 before:bg-primary before:rounded-r' : 'text-text-muted hover:text-text hover:bg-surface-light'}`}>
               {({ isActive }) => (
                 <>
                   <div className="flex items-center gap-2.5">
                     <Inbox size={18} className="shrink-0" />
                     {!isCollapsed && <span>Caixa de Entrada</span>}
                   </div>
-                  {!isCollapsed && totalInbox > 0 && (
-                    <span className={`text-[9px] px-1.5 py-0.5 rounded-lg ${isActive ? "bg-primary/20 text-primary" : "bg-surface text-text-muted"}`}>
-                      {totalInbox}
-                    </span>
+                  {!isCollapsed && (
+                    <div className="flex items-center gap-1.5">
+                      {totalInbox > 0 && (
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded-lg ${isActive ? "bg-primary/20 text-primary" : "bg-surface text-text-muted"}`}>
+                          {totalInbox}
+                        </span>
+                      )}
+                      {(emissaoAntigasPorPasta.inbox ?? 0) > 0 && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-lg bg-amber-500/20 text-amber-600 font-black">
+                          {emissaoAntigasPorPasta.inbox}
+                        </span>
+                      )}
+                    </div>
                   )}
                 </>
               )}
             </NavLink>
 
-            <NavLink to="/automacoes" prefetch="none" className={({ isActive }) => `flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all relative ${isActive ? 'text-primary bg-primary/10 dark:bg-transparent before:absolute before:-left-2 before:top-1/2 before:-translate-y-1/2 before:w-1 before:h-5 before:bg-primary before:rounded-r' : 'text-text-muted hover:text-text hover:bg-surface-light'}`}>
+            <NavLink to="/automacoes" className={({ isActive }) => `flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all relative ${isActive ? 'text-primary bg-primary/10 dark:bg-transparent before:absolute before:-left-2 before:top-1/2 before:-translate-y-1/2 before:w-1 before:h-5 before:bg-primary before:rounded-r' : 'text-text-muted hover:text-text hover:bg-surface-light'}`}>
               {() => (
                 <div className="flex items-center gap-2.5">
                   <Zap size={18} className="shrink-0" />
@@ -108,7 +134,7 @@ export const Sidebar = React.memo(({
             </NavLink>
 
             {user?.app_metadata?.role === "admin" && (
-              <NavLink to="/admin/usuarios" prefetch="none" className={({ isActive }) => `flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all relative ${isActive ? 'text-primary bg-primary/10 dark:bg-transparent before:absolute before:-left-2 before:top-1/2 before:-translate-y-1/2 before:w-1 before:h-5 before:bg-primary before:rounded-r' : 'text-text-muted hover:text-text hover:bg-surface-light'}`}>
+              <NavLink to="/admin/usuarios" className={({ isActive }) => `flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all relative ${isActive ? 'text-primary bg-primary/10 dark:bg-transparent before:absolute before:-left-2 before:top-1/2 before:-translate-y-1/2 before:w-1 before:h-5 before:bg-primary before:rounded-r' : 'text-text-muted hover:text-text hover:bg-surface-light'}`}>
                 {() => (
                   <div className="flex items-center gap-2.5">
                     <ShieldCheck size={18} className="shrink-0" />
@@ -183,6 +209,16 @@ export const Sidebar = React.memo(({
             {isAddingFolder && !isCollapsed && (
               <form onSubmit={handleCreateFolder} className="px-3 mb-2 space-y-2 bg-surface rounded-xl p-2 border border-glass-border">
                 <input autoFocus value={newFolderName} onChange={e => setNewFolderName(e.target.value)} placeholder="Nome..." className="w-full bg-card-bg dark:bg-bg rounded-lg px-2 py-1 text-xs font-bold outline-none border border-[rgba(0,0,0,0.12)] dark:border-glass-border focus:border-primary text-text placeholder:text-text-dim" />
+                <select
+                  value={newFolderFaturista}
+                  onChange={e => setNewFolderFaturista(e.target.value)}
+                  className="w-full bg-card-bg dark:bg-bg rounded-lg px-2 py-1 text-xs font-bold outline-none border border-[rgba(0,0,0,0.12)] dark:border-glass-border focus:border-primary text-text"
+                >
+                  <option value="" disabled>Faturista responsável...</option>
+                  {faturistas.map(f => (
+                    <option key={f.id} value={f.id}>{f.nome || f.email}</option>
+                  ))}
+                </select>
                 <div className="flex justify-between items-center px-1">
                   <div className="flex gap-1.5">
                     {PRESET_COLORS.map(c => (
@@ -191,14 +227,14 @@ export const Sidebar = React.memo(({
                   </div>
                   <div className="flex gap-1">
                     <button type="button" onClick={() => setIsAddingFolder(false)} className="p-1 hover:text-rose-500"><X size={14}/></button>
-                    <button type="submit" disabled={fetcher.state !== 'idle'} className="p-1 hover:text-emerald-500 disabled:opacity-50"><CheckCircle2 size={14}/></button>
+                    <button type="submit" disabled={isCreating || !newFolderFaturista} className="p-1 hover:text-emerald-500 disabled:opacity-40"><CheckCircle2 size={14}/></button>
                   </div>
                 </div>
               </form>
             )}
 
             {filteredPastas.map((p: any) => (
-              <SidebarFolderItem key={p.id} folder={p} isCollapsed={isCollapsed} />
+              <SidebarFolderItem key={p.id} folder={p} isCollapsed={isCollapsed} antigas={emissaoAntigasPorPasta[String(p.id)] ?? 0} />
             ))}
 
             {!isCollapsed && pastas.length > 0 && filteredPastas.length === 0 && (
@@ -223,7 +259,7 @@ export const Sidebar = React.memo(({
         </button>
 
         {!isCollapsed && user && (
-          <NavLink to="/perfil" prefetch="intent" className={({ isActive }) => `block px-3 py-2 rounded-xl mb-1 group/user relative border transition-all ${isActive ? 'bg-primary/10 border-primary/30' : 'bg-surface border-glass-border hover:border-primary/50 hover:bg-surface-light'} shadow-sm`}>
+          <NavLink to="/perfil" className={({ isActive }) => `block px-3 py-2 rounded-xl mb-1 group/user relative border transition-all ${isActive ? 'bg-primary/10 border-primary/30' : 'bg-surface border-glass-border hover:border-primary/50 hover:bg-surface-light'} shadow-sm`}>
             {({ isActive }) => (
               <div className="flex items-center gap-2.5 overflow-hidden">
                 <div className={`p-1.5 rounded-lg border transition-colors ${isActive ? 'bg-primary text-white border-primary shadow-primary-glow' : 'bg-surface-light text-text-muted border-glass-border group-hover/user:text-primary group-hover/user:border-primary/30'}`}>

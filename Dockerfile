@@ -19,7 +19,7 @@ RUN npx prisma generate
 # Copia o resto do código da aplicação
 COPY . .
 
-# Roda o build do React Router v7
+# Roda o build do SPA (Vite) + bundle da API (esbuild)
 RUN npm run build
 
 # Limpa dependências de desenvolvimento para economizar espaço
@@ -41,8 +41,9 @@ ENV PORT=3000
 # Copia os node_modules (que agora têm apenas dependências de prod e o Prisma Client)
 COPY --from=builder /app/node_modules ./node_modules
 
-# Copia as pastas de build geradas, assets públicos e o schema do Prisma
-COPY --from=builder /app/build ./build
+# Copia as pastas de build geradas (estáticos do SPA + bundle da API), assets públicos e o schema do Prisma
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/build-server ./build-server
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/prisma ./prisma
@@ -50,5 +51,5 @@ COPY --from=builder /app/prisma ./prisma
 # Expõe a porta padrão
 EXPOSE 3000
 
-# O comando npm run start roda "react-router-serve ./build/server/index.js"
+# O comando npm run start roda a API que também serve os estáticos do SPA
 CMD ["npm", "run", "start"]
